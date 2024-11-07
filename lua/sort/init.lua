@@ -1,38 +1,54 @@
+local buffer = require('sort.buffer')
+local command = require('sort.command')
 local config = require('sort.config')
-local interface = require('sort.interface')
+local selection = require('sort.selection')
 local sort = require('sort.sort')
-local utils = require('sort.utils')
 
 local M = {}
 
-M.setup = config.setup
+--- Sort by either lines or specified delimiters, depending on the selection.
+--- @param sel Selection
+--- @param options SortOptions
+local line_or_delimiter_sort = function(sel, options)
+  selection.sanitise(sel)
 
---- Sort by either lines or specified delimiters.
---- @param bang string
---- @param arguments string
-M.sort = function(bang, arguments)
-  local selection = interface.get_visual_selection()
-  local is_multiple_lines_selected = selection.start.row < selection.stop.row
-
-  if
-    selection.start.row == 0
-    or (
-      selection.start.row == selection.stop.row
-      and selection.start.column == selection.stop.column
-    )
-  then
-    return
-  end
+  local is_multiple_lines_selected = sel.start.row < sel.stop.row
 
   if is_multiple_lines_selected then
-    sort.line_sort(bang, arguments)
+    sort.line_sort(sel, options)
   else
-    local options = utils.parse_arguments(bang, arguments)
-    local text = interface.get_text_between_columns(selection)
+    local text = buffer.get_text_in_selection(sel)[1]
     local sorted_text = sort.delimiter_sort(text, options)
-
-    interface.set_line_text(selection, sorted_text)
+    buffer.set_text_in_selection(sel, { sorted_text })
   end
 end
+
+--- Parse bang and arguments, determine the selection and and delegate the sorting to the API.
+--- @param bang string
+--- @param arguments string
+M.command = function(bang, arguments)
+  local options = command.read_arguments(bang, arguments)
+  local sel = selection.from_marks('<', '>')
+  line_or_delimiter_sort(sel, options)
+end
+
+--- Sort operator with respect to the provided options.
+--- @param options SortOptions
+M.operator = function(options)
+  local oldfunc = vim.opt.operatorfunc
+  local opts = options or {}
+
+  _G._sort_operatorfunc = function(motion)
+    local sel = selection.from_motion(motion)
+    line_or_delimiter_sort(sel, opts)
+    vim.opt.operatorfunc = oldfunc
+    _G._sort_operatorfunc = nil
+  end
+
+  vim.opt.operatorfunc = 'v:lua._sort_operatorfunc'
+  return 'g@'
+end
+
+M.setup = config.setup
 
 return M

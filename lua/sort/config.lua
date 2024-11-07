@@ -1,8 +1,12 @@
 local M = {}
 
+--- @class Config
+--- @field public delimiters table<string, integer>
+
 --- @type Config
-local defaults = {}
-defaults.delimiters = { ',', '|', ';', ':', 's', 't' }
+local defaults = {
+  delimiters = { ',', '|', ';', ':', 's', 't' },
+}
 
 local user_config = defaults
 
@@ -20,6 +24,5 @@ M.setup = function(overrides)
 
   return user_config
 end
-
 
 return M
